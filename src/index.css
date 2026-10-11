@@ -148,45 +148,6 @@
   }
 }
 
-@keyframes firework-rocket {
-  0% {
-    transform: translate(0, 0);
-    opacity: 1;
-  }
-  85% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--rx, 0px), var(--ry, -50vh));
-    opacity: 0;
-  }
-}
-
-@keyframes firework-particle {
-  0% {
-    transform: translate(0, 0) scale(1);
-    opacity: 1;
-  }
-  65% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--px, 0px), calc(var(--py, 0px) + 50px)) scale(0.3);
-    opacity: 0;
-  }
-}
-
-@keyframes firework-flash {
-  0% {
-    transform: scale(0.2);
-    opacity: 0.9;
-  }
-  100% {
-    transform: scale(2.4);
-    opacity: 0;
-  }
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
