@@ -1,12 +1,13 @@
-import { useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
+import { motion, useReducedMotion } from "motion/react"
 import { cn } from "cn"
 import { Pointer } from "./roulette/Pointer"
 import { Wheel } from "./roulette/Wheel"
-import { SEGMENTS, SEGMENT_ANGLE } from "./roulette/segments"
+import { SEGMENTS } from "./roulette/segments"
 import { useEquitableDraw } from "./roulette/useEquitableDraw"
+import { useSpin } from "./roulette/useSpin"
 
-const SPIN_DURATION_MS = 4200
-const EXTRA_SPINS = 5
+type Phase = "idle" | "spinning" | "settled"
 
 const FIREWORK_COLORS = ["#f97316", "#facc15", "#22c55e", "#3b82f6", "#ec4899", "#a855f7", "#ef4444"]
 
@@ -109,84 +110,78 @@ function FireworksShow({ burstId }: { burstId: number }) {
 }
 
 export function Roulette() {
-  const [rotation, setRotation] = useState(0)
-  const [spinning, setSpinning] = useState(false)
+  const reducedMotion = !!useReducedMotion()
+  const [phase, setPhase] = useState<Phase>("idle")
   const [result, setResult] = useState<string | null>(null)
   const [winnerIndex, setWinnerIndex] = useState<number | null>(null)
   const [burstId, setBurstId] = useState(0)
-  const rotationRef = useRef(0)
   const drawWinner = useEquitableDraw(SEGMENTS.length)
-  const timeoutRef = useRef<number | null>(null)
+  const { rotation, flick, spin } = useSpin({ reducedMotion, onDivider: () => {} })
+  const spinning = phase === "spinning"
 
-  const handleSpin = () => {
+  const handleSpin = async () => {
     if (spinning) return
 
     const drawnIndex = drawWinner()
-    const jitter = (Math.random() - 0.5) * (SEGMENT_ANGLE * 0.6)
-    const targetAngleFromTop = drawnIndex * SEGMENT_ANGLE + SEGMENT_ANGLE / 2 + jitter
-
-    const currentMod = ((rotationRef.current % 360) + 360) % 360
-    const desiredMod = ((360 - targetAngleFromTop) % 360 + 360) % 360
-    let deltaToDesired = desiredMod - currentMod
-    if (deltaToDesired < 0) deltaToDesired += 360
-
-    rotationRef.current += EXTRA_SPINS * 360 + deltaToDesired
-    setRotation(rotationRef.current)
-    setSpinning(true)
+    setPhase("spinning")
     setResult(null)
     setWinnerIndex(null)
 
-    if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
-    timeoutRef.current = window.setTimeout(() => {
-      setSpinning(false)
-      setResult(SEGMENTS[drawnIndex].label)
-      setWinnerIndex(drawnIndex)
-      setBurstId((id) => id + 1)
-    }, SPIN_DURATION_MS)
+    const outcome = await spin(drawnIndex)
+    if (outcome !== "done") return
+
+    setPhase("settled")
+    setResult(SEGMENTS[drawnIndex].label)
+    setWinnerIndex(drawnIndex)
+    setBurstId((id) => id + 1)
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center gap-10 bg-gradient-to-b from-background to-muted p-6">
+    <div className="flex min-h-dvh w-full flex-col items-center justify-center gap-10 bg-gradient-to-b from-background to-muted p-6">
       <div className="text-center">
         <h1 className="text-3xl font-bold tracking-tight">¡A Jugar! Girá la Ruleta</h1>
         <p className="text-muted-foreground">Tocá la ruleta para elegir tu desafío</p>
       </div>
 
-      <div className="relative size-80 sm:size-96">
-        <Pointer />
+      <div className="relative size-[min(80vw,60dvh,24rem)]">
+        <Pointer flick={flick} />
 
         <button
           type="button"
           onClick={handleSpin}
-          disabled={spinning}
+          aria-disabled={spinning}
           aria-label="Girar la ruleta"
           className={cn(
             "relative size-full rounded-full",
-            "transition-shadow disabled:cursor-not-allowed",
+            "transition-shadow aria-disabled:cursor-not-allowed",
+            "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background",
             !spinning &&
               "cursor-pointer animate-[wheel-glow_2.2s_ease-in-out_infinite] hover:shadow-[0_0_40px_var(--color-primary)]"
           )}
         >
-          <div
-            className="size-full"
-            style={{
-              transform: `rotate(${rotation}deg)`,
-              transition: `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.17, 0.89, 0.35, 1)`,
-            }}
-          >
+          <motion.div className="size-full" style={{ rotate: rotation }}>
             <Wheel segments={SEGMENTS} winnerIndex={winnerIndex} spinning={spinning} />
-          </div>
+          </motion.div>
         </button>
       </div>
 
+      <p role="status" aria-live="polite" className="sr-only">
+        {result ? `Te tocó: ${result}` : ""}
+      </p>
+
       <div className="flex h-16 items-center justify-center">
         {spinning && (
-          <p className="text-lg font-medium text-muted-foreground">Girando…</p>
+          <p aria-hidden="true" className="text-lg font-medium text-muted-foreground">
+            Girando…
+          </p>
         )}
-        {!spinning && result && (
+        {phase === "settled" && result && (
           <>
-            <FireworksShow burstId={burstId} />
-            <div className="animate-in fade-in zoom-in-95 rounded-xl border bg-card px-6 py-3 text-center shadow-lg">
+            {!reducedMotion && <FireworksShow burstId={burstId} />}
+            <div
+              aria-hidden="true"
+              className="animate-in fade-in zoom-in-95 rounded-xl border bg-card px-6 py-3 text-center shadow-lg"
+            >
               <p className="text-sm text-muted-foreground">Te tocó:</p>
               <p className="text-xl font-bold text-card-foreground">{result}</p>
             </div>
