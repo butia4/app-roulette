@@ -36,11 +36,12 @@ export function Wheel({ segments, winnerIndex, spinning }: WheelProps) {
             d={arcPath(CENTER, CENTER, SEGMENT_RADIUS, i * segmentAngle, (i + 1) * segmentAngle)}
             style={{
               fill: segment.color,
-              opacity: hasWinner && !isWinner ? 0.45 : 1,
+              // Darken (not fade) non-winners so their white labels keep AA contrast.
+              filter: hasWinner && !isWinner ? "brightness(0.55) saturate(0.6)" : "none",
               stroke: isWinner ? "var(--wheel-light)" : "none",
               strokeWidth: isWinner ? 4 : 0,
               strokeLinejoin: "round",
-              transition: "opacity 300ms",
+              transition: "filter 300ms",
             }}
           />
         )
