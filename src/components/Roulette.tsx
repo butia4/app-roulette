@@ -1,53 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from "react"
-import { Dices } from "lucide-react"
+import { useMemo, useRef, useState } from "react"
 import { cn } from "cn"
+import { Pointer } from "./roulette/Pointer"
+import { Wheel } from "./roulette/Wheel"
+import { SEGMENTS, SEGMENT_ANGLE } from "./roulette/segments"
+import { useEquitableDraw } from "./roulette/useEquitableDraw"
 
-interface Segment {
-  label: string
-  color: string
-}
-
-const SEGMENTS: Segment[] = [
-  { label: "Desafío 1 - Imperativo", color: "#f97316" },
-  { label: "Desafío 2 - Imperativo", color: "#ef4444" },
-  { label: "Desafío 1 - Evento", color: "#3b82f6" },
-  { label: "Desafío 2 - Evento", color: "#8b5cf6" },
-]
-
-const SEGMENT_ANGLE = 360 / SEGMENTS.length
 const SPIN_DURATION_MS = 4200
 const EXTRA_SPINS = 5
-
-function shuffle<T>(items: T[]): T[] {
-  const array = [...items]
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[array[i], array[j]] = [array[j], array[i]]
-  }
-  return array
-}
-
-/**
- * Equitable draw: indices are dealt from a shuffled bag containing each
- * option exactly once, so every option lands exactly once per 4 spins
- * regardless of draw order.
- */
-function useEquitableDraw(optionCount: number) {
-  const bagRef = useRef<number[]>([])
-
-  return useCallback(() => {
-    if (bagRef.current.length === 0) {
-      bagRef.current = shuffle(Array.from({ length: optionCount }, (_, i) => i))
-    }
-    return bagRef.current.pop()!
-  }, [optionCount])
-}
-
-const wheelGradient = `conic-gradient(${SEGMENTS.map((segment, i) => {
-  const start = i * SEGMENT_ANGLE
-  const end = start + SEGMENT_ANGLE
-  return `${segment.color} ${start}deg ${end}deg`
-}).join(", ")})`
 
 const FIREWORK_COLORS = ["#f97316", "#facc15", "#22c55e", "#3b82f6", "#ec4899", "#a855f7", "#ef4444"]
 
@@ -153,6 +112,7 @@ export function Roulette() {
   const [rotation, setRotation] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [winnerIndex, setWinnerIndex] = useState<number | null>(null)
   const [burstId, setBurstId] = useState(0)
   const rotationRef = useRef(0)
   const drawWinner = useEquitableDraw(SEGMENTS.length)
@@ -161,9 +121,9 @@ export function Roulette() {
   const handleSpin = () => {
     if (spinning) return
 
-    const winnerIndex = drawWinner()
+    const drawnIndex = drawWinner()
     const jitter = (Math.random() - 0.5) * (SEGMENT_ANGLE * 0.6)
-    const targetAngleFromTop = winnerIndex * SEGMENT_ANGLE + SEGMENT_ANGLE / 2 + jitter
+    const targetAngleFromTop = drawnIndex * SEGMENT_ANGLE + SEGMENT_ANGLE / 2 + jitter
 
     const currentMod = ((rotationRef.current % 360) + 360) % 360
     const desiredMod = ((360 - targetAngleFromTop) % 360 + 360) % 360
@@ -174,11 +134,13 @@ export function Roulette() {
     setRotation(rotationRef.current)
     setSpinning(true)
     setResult(null)
+    setWinnerIndex(null)
 
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
     timeoutRef.current = window.setTimeout(() => {
       setSpinning(false)
-      setResult(SEGMENTS[winnerIndex].label)
+      setResult(SEGMENTS[drawnIndex].label)
+      setWinnerIndex(drawnIndex)
       setBurstId((id) => id + 1)
     }, SPIN_DURATION_MS)
   }
@@ -191,16 +153,7 @@ export function Roulette() {
       </div>
 
       <div className="relative size-80 sm:size-96">
-        <div
-          className="absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1/2"
-          style={{
-            width: 0,
-            height: 0,
-            borderLeft: "16px solid transparent",
-            borderRight: "16px solid transparent",
-            borderTop: "28px solid var(--foreground)",
-          }}
-        />
+        <Pointer />
 
         <button
           type="button"
@@ -208,43 +161,20 @@ export function Roulette() {
           disabled={spinning}
           aria-label="Girar la ruleta"
           className={cn(
-            "relative size-full rounded-full border-4 border-foreground/10 shadow-2xl",
+            "relative size-full rounded-full",
             "transition-shadow disabled:cursor-not-allowed",
             !spinning &&
               "cursor-pointer animate-[wheel-glow_2.2s_ease-in-out_infinite] hover:shadow-[0_0_40px_var(--color-primary)]"
           )}
-          style={{
-            background: wheelGradient,
-            transform: `rotate(${rotation}deg)`,
-            transition: `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.17, 0.89, 0.35, 1)`,
-          }}
         >
-          {SEGMENTS.map((segment, i) => {
-            const midAngle = i * SEGMENT_ANGLE + SEGMENT_ANGLE / 2
-            const rad = (midAngle * Math.PI) / 180
-            const radius = 30
-            const x = 50 + radius * Math.sin(rad)
-            const y = 50 - radius * Math.cos(rad)
-            const [title, subtitle] = segment.label.split(" - ")
-            return (
-              <div
-                key={segment.label}
-                className="absolute flex w-[40%] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center leading-tight text-white drop-shadow-md"
-                style={{ left: `${x}%`, top: `${y}%` }}
-              >
-                <span className="text-[11px] font-bold sm:text-sm">{title}</span>
-                {subtitle && (
-                  <span className="text-[10px] font-medium sm:text-xs">{subtitle}</span>
-                )}
-              </div>
-            )
-          })}
-
-          <div className="absolute left-1/2 top-1/2 flex size-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-full bg-background shadow-inner sm:size-20">
-            <Dices className="size-5 text-foreground sm:size-6" />
-            <span className="text-[10px] font-bold uppercase tracking-wide text-foreground sm:text-xs">
-              Girar
-            </span>
+          <div
+            className="size-full"
+            style={{
+              transform: `rotate(${rotation}deg)`,
+              transition: `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.17, 0.89, 0.35, 1)`,
+            }}
+          >
+            <Wheel segments={SEGMENTS} winnerIndex={winnerIndex} spinning={spinning} />
           </div>
         </button>
       </div>
