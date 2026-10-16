@@ -7,7 +7,7 @@ import { Wheel } from "./roulette/Wheel"
 import { celebrate } from "./roulette/celebrate"
 import { SEGMENTS } from "./roulette/segments"
 import { createSoundEngine, type SoundEngine } from "./roulette/sound"
-import { useEquitableDraw } from "./roulette/useEquitableDraw"
+import { useAlternatingDraw } from "./roulette/useAlternatingDraw"
 import { useSpin } from "./roulette/useSpin"
 
 type Phase = "idle" | "spinning" | "settled"
@@ -21,7 +21,7 @@ export function Roulette() {
   const mutedRef = useRef(false)
   const soundRef = useRef<SoundEngine | null>(null)
   const stopCelebrationRef = useRef<(() => void) | null>(null)
-  const drawWinner = useEquitableDraw(SEGMENTS.length)
+  const drawWinner = useAlternatingDraw(SEGMENTS)
   const { rotation, flick, spin } = useSpin({
     reducedMotion,
     onDivider: () => {
